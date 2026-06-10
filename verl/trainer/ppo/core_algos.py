@@ -893,6 +893,9 @@ def compute_policy_loss_vanilla(
     loss_agg_mode: str = "token-mean",
     config: Optional[DictConfig | AlgoConfig] = None,
     rollout_is_weights: torch.Tensor | None = None,
+    difficulty_tags=None,
+    nsr: bool = False,
+    nsr_delta: float = 0.1,
 ) -> tuple[torch.Tensor, dict[str, Any]]:
     """
     Compute the clipped policy objective and related metrics for PPO.
@@ -934,30 +937,54 @@ def compute_policy_loss_vanilla(
         + f" but get the value: {clip_ratio_c}."
     )
 
+    if cliprange_low is None:
+        cliprange_low = cliprange
+    if cliprange_high is None:
+        cliprange_high = cliprange
+
     negative_approx_kl = log_prob - old_log_prob
     # Clamp negative_approx_kl for stability
     negative_approx_kl = torch.clamp(negative_approx_kl, min=-20.0, max=20.0)
     ratio = torch.exp(negative_approx_kl)
     ppo_kl = verl_F.masked_mean(-negative_approx_kl, response_mask)
 
-    pg_losses1 = -advantages * ratio
-    if cliprange_low is None:
-        cliprange_low = cliprange
-    if cliprange_high is None:
-        cliprange_high = cliprange
+    ratio_final = ratio 
+
+    if nsr:
+        print(f"Apply NSR, delta: {nsr_delta}")
+        limit_upper = 1.0 + cliprange_high
+        limit_lower = 1.0 - cliprange_low
+
+        mask_high = (ratio > limit_upper) & (advantages > 0)
+        mask_low = (ratio < limit_lower) & (advantages < 0)
+
+        scale_factor = torch.ones_like(ratio)
+        low_bound = 1.0 - nsr_delta
+        high_bound = 1.0 + nsr_delta
+        rand_high = torch.empty_like(ratio).uniform_(low_bound, high_bound)
+        rand_low = torch.empty_like(ratio).uniform_(low_bound, high_bound)
+
+        scale_factor = torch.where(mask_high, rand_high, scale_factor)
+        scale_factor = torch.where(mask_low, rand_low, scale_factor)
+
+        scale_factor = scale_factor.detach()
+        ratio_final = ratio * scale_factor
+
+    pg_losses1 = -advantages * ratio_final
+
     pg_losses2 = -advantages * torch.clamp(
-        ratio, 1 - cliprange_low, 1 + cliprange_high
+        ratio_final, 1 - cliprange_low, 1 + cliprange_high
     )  # - clip(ratio, 1-cliprange, 1+cliprange) * A
     clip_pg_losses1 = torch.maximum(
         pg_losses1, pg_losses2
     )  # max(-ratio * A, -clip(ratio, 1-cliprange, 1+cliprange) * A)
-    pg_clipfrac = verl_F.masked_mean(torch.gt(pg_losses2, pg_losses1).float(), response_mask)
+    clip_upper_mask = torch.gt(pg_losses2, pg_losses1)
+    pg_clipfrac = verl_F.masked_mean(clip_upper_mask.float(), response_mask)
 
     pg_losses3 = -advantages * clip_ratio_c
     clip_pg_losses2 = torch.min(pg_losses3, clip_pg_losses1)
-    pg_clipfrac_lower = verl_F.masked_mean(
-        torch.gt(clip_pg_losses1, pg_losses3) * (advantages < 0).float(), response_mask
-    )
+    clip_lower_mask = torch.gt(clip_pg_losses1, pg_losses3) & (advantages < 0)
+    pg_clipfrac_lower = verl_F.masked_mean(clip_lower_mask.float(), response_mask)
 
     pg_losses = torch.where(advantages < 0, clip_pg_losses2, clip_pg_losses1)
 
@@ -972,6 +999,18 @@ def compute_policy_loss_vanilla(
         "actor/ppo_kl": ppo_kl.detach().item(),
         "actor/pg_clipfrac_lower": pg_clipfrac_lower.detach().item(),
     }
+
+    if difficulty_tags is not None:
+        dts = difficulty_tags.view(-1).unsqueeze(-1).expand_as(response_mask)
+        is_valid = response_mask > 0
+        all_tags = [1, 2, 3, 4, 5, 6, 7]
+        for tag in all_tags:
+            tag = int(tag)
+            dt_mask = (dts == tag) & is_valid
+            pg_metrics[f"actor/correct_{tag}/clip_num"] = (clip_upper_mask & dt_mask).float().sum().item()
+            pg_metrics[f"actor/correct_{tag}/clip_lower_num"] = (clip_lower_mask & dt_mask).float().sum().item()
+            pg_metrics[f"actor/correct_{tag}/denom"] = dt_mask.float().sum().item()
+
     return pg_loss, pg_metrics
 
 

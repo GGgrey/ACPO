@@ -107,6 +107,8 @@ class ActorConfig(BaseConfig):
     loss_agg_mode: str = "token-mean"
     entropy_coeff: float = 0
     use_kl_loss: bool = False
+    nsr: bool = False
+    nsr_delta: float = 0.1
     use_torch_compile: bool = True
     kl_loss_coef: float = 0.001
     kl_loss_type: str = "low_var_kl"

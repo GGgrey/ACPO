@@ -77,6 +77,13 @@ entropy_coeff: 0
 # Whether to use KL loss instead of KL reward penalty. True for GRPO
 use_kl_loss: false
 
+# Whether to enable NSR (noise rescaling) for outliers in policy loss
+# When True, applies random scale in (1 - nsr_delta, 1 + nsr_delta) to outliers
+nsr: false
+
+# NSR noise range parameter delta; scale is sampled in (1 - nsr_delta, 1 + nsr_delta)
+nsr_delta: 0.1
+
 # Whether to use torch.compile()
 # oc.select: the default val for ref.use_torch_compile
 use_torch_compile: true

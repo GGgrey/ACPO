@@ -953,6 +953,24 @@ class RayPPOTrainer:
         )
         metrics.update(global_balance_stats)
 
+    def _tag_difficulty_by_correct_count(self, batch: DataProto):
+        rollout_n  = self.config.actor_rollout_ref.rollout.n
+        scores = batch.batch["token_level_scores"].sum(dim=-1)
+        sample_uids = np.asarray(batch.non_tensor_batch["uid"])
+        is_correct = (scores > 0.5).float()
+
+        batch_size = scores.shape[0]
+        group_correct_counts = torch.zeros(batch_size, dtype=torch.long)
+        for uid in np.unique(sample_uids):
+            group_indices = np.where(sample_uids == uid)[0]
+            group_correct_counts[group_indices] = int(is_correct[group_indices].sum().item())
+
+        difficulty_tags = group_correct_counts.clone()
+        difficulty_tags[group_correct_counts == 0] = -1
+        difficulty_tags[group_correct_counts == rollout_n] = -1
+
+        batch.batch["difficulty_tags"] = difficulty_tags
+
     def fit(self):
         """
         The training loop of PPO.
@@ -1158,6 +1176,8 @@ class RayPPOTrainer:
                             reward_tensor, reward_extra_infos_dict = ray.get(future_reward)
                         batch.batch["token_level_scores"] = reward_tensor
 
+                        self._tag_difficulty_by_correct_count(batch)
+
                         if reward_extra_infos_dict:
                             batch.non_tensor_batch.update({k: np.array(v) for k, v in reward_extra_infos_dict.items()})
 
@@ -1213,7 +1233,31 @@ class RayPPOTrainer:
                         with marked_timer("update_actor", timing_raw, color="red"):
                             batch.meta_info["multi_turn"] = self.config.actor_rollout_ref.rollout.multi_turn.enable
                             actor_output = self.actor_rollout_wg.update_actor(batch)
-                        actor_output_metrics = reduce_metrics(actor_output.meta_info["metrics"])
+
+                        raw_metrics = actor_output.meta_info["metrics"]
+                        rollout_n = self.config.actor_rollout_ref.rollout.n
+                        diff_metrics = {}
+
+                        def _flatten_sum(x):
+                            if x is None:
+                                return 0.0
+                            if isinstance(x, (list, tuple)):
+                                return sum(_flatten_sum(v) for v in x)
+                            if isinstance(x, np.ndarray):
+                                return float(x.sum())
+                            return float(x)
+
+                        for g in range(1, rollout_n):
+                            num  = _flatten_sum(raw_metrics.pop(f"actor/correct_{g}/clip_num", 0.0))
+                            lnum = _flatten_sum(raw_metrics.pop(f"actor/correct_{g}/clip_lower_num", 0.0))
+                            den  = _flatten_sum(raw_metrics.pop(f"actor/correct_{g}/denom", 0.0))
+                            if den > 0:
+                                diff_metrics[f"actor/correct_{g}/pg_clipfrac"] = num / den
+                                diff_metrics[f"actor/correct_{g}/pg_clipfrac_lower"] = lnum / den
+                                diff_metrics[f"actor/correct_{g}/token_count"] = den
+
+                        actor_output_metrics = reduce_metrics(raw_metrics)
+                        actor_output_metrics.update(diff_metrics)
                         metrics.update(actor_output_metrics)
 
                     # Log rollout generations if enabled

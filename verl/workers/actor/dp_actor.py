@@ -383,6 +383,7 @@ class DataParallelPPOActor(BasePPOActor):
             "position_ids",
             "old_log_probs",
             "advantages",
+            "difficulty_tags",
         ]
         if self.config.use_kl_loss:
             select_keys.append("ref_log_prob")
@@ -426,9 +427,12 @@ class DataParallelPPOActor(BasePPOActor):
                     response_mask = model_inputs["response_mask"]
                     old_log_prob = model_inputs["old_log_probs"]
                     advantages = model_inputs["advantages"]
+                    difficulty_tags = model_inputs["difficulty_tags"]
 
                     entropy_coeff = self.config.entropy_coeff
                     loss_agg_mode = self.config.loss_agg_mode
+                    nsr = self.config.get("nsr", False)
+                    nsr_delta = self.config.get("nsr_delta", 0.1)
 
                     if self.config.use_dynamic_bsz:
                         loss_scale_factor = response_mask.shape[0] / self.config.ppo_mini_batch_size
@@ -457,7 +461,7 @@ class DataParallelPPOActor(BasePPOActor):
                     # Extract pre-computed rollout correction weights if present
                     # Weights are computed centrally in trainer and added when algorithm.rollout_is=True
                     rollout_is_weights = model_inputs.get("rollout_is_weights", None)
-
+                    
                     if loss_mode == "vanilla":
                         pg_loss, pg_metrics = compute_policy_loss_vanilla(
                             old_log_prob=old_log_prob,
@@ -467,6 +471,9 @@ class DataParallelPPOActor(BasePPOActor):
                             loss_agg_mode=loss_agg_mode,
                             config=self.config,
                             rollout_is_weights=rollout_is_weights,
+                            difficulty_tags=difficulty_tags,
+                            nsr=nsr,
+                            nsr_delta=nsr_delta,
                         )
                     
                     else:
@@ -482,7 +489,7 @@ class DataParallelPPOActor(BasePPOActor):
                             config=self.config,
                             rollout_is_weights=rollout_is_weights,
                         )
-                        
+
                     micro_batch_metrics.update(pg_metrics)
 
                     # Skip if using pure rollout correction mode (metrics already in pg_metrics)

@@ -37,7 +37,7 @@ from omegaconf import OmegaConf
 from torch import nn
 
 from verl import DataProto
-from verl.trainer.ppo.core_algos import agg_loss, get_policy_loss_fn, kl_penalty
+from verl.trainer.ppo.core_algos import agg_loss, get_policy_loss_fn, kl_penalty, compute_policy_loss_vanilla
 from verl.utils.device import get_device_id, get_torch_device
 from verl.utils.megatron.pipeline_parallel import make_batch_generator
 from verl.utils.megatron.tensor_parallel import vocab_parallel_entropy, vocab_parallel_log_probs_from_logits
@@ -313,6 +313,7 @@ class MegatronPPOActor(BasePPOActor):
             "position_ids",
             "old_log_probs",
             "advantages",
+            "difficulty_tags",
         ]
         if self.config.use_kl_loss:
             select_keys.append("ref_log_prob")
@@ -443,26 +444,44 @@ class MegatronPPOActor(BasePPOActor):
             if not forward_only:
                 old_log_prob = data["old_log_probs"]
                 advantages = data["advantages"]
+                difficulty_tags = data["difficulty_tags"]
 
                 entropy_coeff = self.config.entropy_coeff
                 loss_agg_mode = self.config.loss_agg_mode
 
                 loss_mode = self.config.policy_loss.get("loss_mode", "vanilla")
 
-                policy_loss_fn = get_policy_loss_fn(loss_mode)
-
                 # Extract pre-computed rollout correction weights if present
                 # Weights are computed centrally in trainer and added when algorithm.rollout_is=True
                 rollout_is_weights = data.get("rollout_is_weights", None)
-                pg_loss, pg_metrics = policy_loss_fn(
-                    old_log_prob=old_log_prob,
-                    log_prob=log_prob,
-                    advantages=advantages,
-                    response_mask=response_mask,
-                    loss_agg_mode=loss_agg_mode,
-                    config=self.config,
-                    rollout_is_weights=rollout_is_weights,
-                )
+
+                if loss_mode == "vanilla":
+                    pg_loss, pg_metrics = compute_policy_loss_vanilla(
+                        old_log_prob=old_log_prob,
+                        log_prob=log_prob,
+                        advantages=advantages,
+                        response_mask=response_mask,
+                        loss_agg_mode=loss_agg_mode,
+                        config=self.config,
+                        rollout_is_weights=rollout_is_weights,
+                        difficulty_tags=difficulty_tags,
+                        nsr=nsr,
+                        nsr_delta=nsr_delta,
+                    )
+                
+                else:
+                    policy_loss_fn = get_policy_loss_fn(loss_mode)
+
+                    pg_loss, pg_metrics = policy_loss_fn(
+                        old_log_prob=old_log_prob,
+                        log_prob=log_prob,
+                        advantages=advantages,
+                        response_mask=response_mask,
+                        loss_agg_mode=loss_agg_mode,
+                        config=self.config,
+                        rollout_is_weights=rollout_is_weights,
+                    )
+
                 stats.update(pg_metrics)
 
                 # Skip if using pure rollout correction mode (metrics already in pg_metrics)
