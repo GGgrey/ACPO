@@ -105,6 +105,7 @@ class AdvantageEstimator(str, Enum):
     GPG = "gpg"
     RLOO_VECTORIZED = "rloo_vectorized"
     GRPO_VECTORIZED = "grpo_vectorized"
+    SOBA = "soba"
 
 
 ADV_ESTIMATOR_REGISTRY: dict[str, Any] = {}
@@ -327,6 +328,78 @@ def compute_grpo_outcome_advantage(
 
     return scores, scores
 
+
+@register_adv_est("soba")
+def compute_soba_outcome_advantage(
+    token_level_rewards: torch.Tensor,
+    response_mask: torch.Tensor,
+    index: np.ndarray,
+    epsilon: float = 1e-6,
+    norm_adv_by_std_in_grpo: bool = True,
+    config: Optional[AlgoConfig] = None,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    scores = token_level_rewards.sum(dim=-1)
+    id2scores = defaultdict(list)
+    id2indexs = defaultdict(list)
+    print("Compute soba outcome advantage")
+    with torch.no_grad():
+        bsz = scores.shape[0]
+        for i in range(bsz):
+            id2scores[index[i]].append(scores[i])
+            id2indexs[index[i]].append(i)
+        
+        for idx in id2scores:
+            if len(id2scores[idx]) == 1:
+                scores[id2indexs[idx][0]] = torch.tensor(
+                    0.0, device=scores.device, dtype=scores.dtype
+                )
+            elif len(id2scores[idx]) > 1:
+                scores_tensor = torch.stack(id2scores[idx])
+                indexs_tensor = torch.tensor(
+                    id2indexs[idx], device=scores.device, dtype=torch.long
+                )
+                group_size = scores_tensor.numel()
+
+                correct_mask = scores_tensor > 0.5
+                num_correct = int(correct_mask.sum().item())
+
+                if num_correct == 0 or num_correct == group_size:
+                    scores[indexs_tensor] = torch.zeros_like(scores_tensor)
+                    continue
+
+                rho = scores_tensor.new_tensor(num_correct / group_size)
+                b_pos = group_size * (1.0 - rho)
+                b_neg = group_size * rho
+
+                mean_score = torch.mean(scores_tensor)
+                centered_scores = scores_tensor - mean_score
+
+                pos_mass = torch.clamp(centered_scores, min=0.0)
+                neg_mass = torch.clamp(-centered_scores, min=0.0)
+                sum_pos = torch.sum(pos_mass)
+                sum_neg = torch.sum(neg_mass)
+
+                if sum_pos <= epsilon:
+                    pos_mass = correct_mask.to(dtype=scores.dtype)
+                    sum_pos = torch.sum(pos_mass)
+
+                if sum_neg <= epsilon:
+                    neg_mass = (~correct_mask).to(dtype=scores.dtype)
+                    sum_neg = torch.sum(neg_mass)
+
+                adv = (
+                    b_pos * pos_mass / (sum_pos + epsilon)
+                    - b_neg * neg_mass / (sum_neg + epsilon)
+                )
+
+                scores[indexs_tensor] = adv
+            else:
+                raise ValueError(f"No score in prompt index: {idx}")
+
+        scores = scores.unsqueeze(-1) * response_mask
+    
+    return scores, scores
+    
 
 @register_adv_est(AdvantageEstimator.GRPO_VECTORIZED)
 def compute_grpo_vectorized_outcome_advantage(
@@ -894,6 +967,7 @@ def compute_policy_loss_vanilla(
     config: Optional[DictConfig | AlgoConfig] = None,
     rollout_is_weights: torch.Tensor | None = None,
     difficulty_tags=None,
+    tag_counts=0.0,
     nsr: bool = False,
     nsr_delta: float = 0.1,
 ) -> tuple[torch.Tensor, dict[str, Any]]:
@@ -1003,8 +1077,7 @@ def compute_policy_loss_vanilla(
     if difficulty_tags is not None:
         dts = difficulty_tags.view(-1).unsqueeze(-1).expand_as(response_mask)
         is_valid = response_mask > 0
-        all_tags = [1, 2, 3, 4, 5, 6, 7]
-        for tag in all_tags:
+        for tag in range(1, tag_counts + 1):
             tag = int(tag)
             dt_mask = (dts == tag) & is_valid
             pg_metrics[f"actor/correct_{tag}/clip_num"] = (clip_upper_mask & dt_mask).float().sum().item()

@@ -6,7 +6,7 @@ export WANDB_DIR="/workspace/verl_exp/"
 export WANDB_MODE=online
 export ACCELERATE_LOG_LEVEL=info
 export HYDRA_FULL_ERROR=1
-export CUDA_VISIBLE_DEVICES="1,2"
+export CUDA_VISIBLE_DEVICES="3,4"
 
 # Data config
 train_prompt_bsz=128

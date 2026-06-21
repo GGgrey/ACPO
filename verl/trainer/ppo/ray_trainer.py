@@ -961,7 +961,7 @@ class RayPPOTrainer:
 
         batch_size = scores.shape[0]
         group_correct_counts = torch.zeros(batch_size, dtype=torch.long)
-        for uid in np.unique(sample_uids):
+        for uid in sample_uids:
             group_indices = np.where(sample_uids == uid)[0]
             group_correct_counts[group_indices] = int(is_correct[group_indices].sum().item())
 
@@ -970,6 +970,7 @@ class RayPPOTrainer:
         difficulty_tags[group_correct_counts == rollout_n] = -1
 
         batch.batch["difficulty_tags"] = difficulty_tags
+        batch.meta_info["tag_counts"] = rollout_n - 1
 
     def fit(self):
         """

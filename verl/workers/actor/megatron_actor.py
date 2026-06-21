@@ -445,9 +445,12 @@ class MegatronPPOActor(BasePPOActor):
                 old_log_prob = data["old_log_probs"]
                 advantages = data["advantages"]
                 difficulty_tags = data["difficulty_tags"]
+                tag_counts = int(data.meta_info["tag_counts"])
 
                 entropy_coeff = self.config.entropy_coeff
                 loss_agg_mode = self.config.loss_agg_mode
+                nsr = self.config.get("nsr", False)
+                nsr_delta = self.config.get("nsr_delta", 0.1)
 
                 loss_mode = self.config.policy_loss.get("loss_mode", "vanilla")
 
@@ -465,6 +468,7 @@ class MegatronPPOActor(BasePPOActor):
                         config=self.config,
                         rollout_is_weights=rollout_is_weights,
                         difficulty_tags=difficulty_tags,
+                        tag_counts=tag_counts,
                         nsr=nsr,
                         nsr_delta=nsr_delta,
                     )

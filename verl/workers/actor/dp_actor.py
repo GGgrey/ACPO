@@ -374,6 +374,7 @@ class DataParallelPPOActor(BasePPOActor):
         self.actor_module.train()
 
         temperature = data.meta_info["temperature"]  # temperature must be in the data.meta_info to avoid silent error
+        tag_counts = int(data.meta_info["tag_counts"])
 
         select_keys = [
             "responses",
@@ -472,6 +473,7 @@ class DataParallelPPOActor(BasePPOActor):
                             config=self.config,
                             rollout_is_weights=rollout_is_weights,
                             difficulty_tags=difficulty_tags,
+                            tag_counts=tag_counts,
                             nsr=nsr,
                             nsr_delta=nsr_delta,
                         )
