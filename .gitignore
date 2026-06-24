@@ -123,9 +123,12 @@ ENV/
 # data
 *.parquet
 
-
 # local logs
 logs
 log
 outputs
 .history
+wandb
+ckpts
+rollout_data
+validation_data

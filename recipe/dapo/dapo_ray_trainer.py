@@ -73,6 +73,25 @@ class RayDAPOTrainer(RayPPOTrainer):
 
         return batch
 
+    def _tag_difficulty_by_correct_count(self, batch: DataProto):
+        rollout_n  = self.config.actor_rollout_ref.rollout.n
+        scores = batch.batch["token_level_scores"].sum(dim=-1)
+        sample_uids = np.asarray(batch.non_tensor_batch["uid"])
+        is_correct = (scores > 0.5).float()
+
+        batch_size = scores.shape[0]
+        group_correct_counts = torch.zeros(batch_size, dtype=torch.long)
+        for uid in sample_uids:
+            group_indices = np.where(sample_uids == uid)[0]
+            group_correct_counts[group_indices] = int(is_correct[group_indices].sum().item())
+
+        difficulty_tags = group_correct_counts.clone()
+        difficulty_tags[group_correct_counts == 0] = -1
+        difficulty_tags[group_correct_counts == rollout_n] = -1
+
+        batch.batch["difficulty_tags"] = difficulty_tags
+        batch.meta_info["tag_counts"] = rollout_n - 1
+
     def fit(self):
         """
         The training loop of PPO.
@@ -324,6 +343,8 @@ class RayDAPOTrainer(RayPPOTrainer):
                         batch, is_metrics = compute_rollout_correction_and_add_to_batch(batch, rollout_corr_config)
                         # IS and off-policy metrics already have rollout_corr/ prefix
                         metrics.update(is_metrics)
+
+                    self._tag_difficulty_by_correct_count(batch)
 
                     with marked_timer("adv", timing_raw, "brown"):
                         # compute advantages, executed on the driver process
