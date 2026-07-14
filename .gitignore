@@ -129,6 +129,9 @@ log
 outputs
 .history
 wandb
+ray
 ckpts
 rollout_data
 validation_data
+data/rollout_data
+data/validation_data

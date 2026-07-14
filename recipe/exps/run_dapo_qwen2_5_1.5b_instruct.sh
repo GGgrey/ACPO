@@ -1,8 +1,18 @@
 #!/usr/bin/env bash
 set -xeuo pipefail
 
+# Environment
+export WORKING_DIR="${WORKING_DIR:-${PWD}}"
+export RAY_TMPDIR="${WORKING_DIR}"
+export WANDB_API_KEY=37f371d2968f35d69749ee52089583eb8e1f0cab
+export WANDB_DIR="${WORKING_DIR}"
+export WANDB_MODE=online
+export ACCELERATE_LOG_LEVEL=info
+export HYDRA_FULL_ERROR=1
+export CUDA_VISIBLE_DEVICES="3,4"
+
 project_name='EXPS'
-exp_name='DAPO-Qwen2.5-1.5B-Instruct-MATH'
+exp_name='DAPO-Qwen2.5-1.5B-Instruct'
 
 adv_estimator=grpo
 
@@ -14,10 +24,10 @@ kl_loss_coef=0.0
 clip_ratio_low=0.2
 clip_ratio_high=0.28
 
-max_prompt_length=$((1024 * 2))
+max_prompt_length=$((1024 * 1))
 max_response_length=$((1024 * 2))
 enable_overlong_buffer=True
-overlong_buffer_len=$((1024 * 1))
+overlong_buffer_len=512
 overlong_penalty_factor=1.0
 
 loss_agg_mode="token-mean"
@@ -25,25 +35,24 @@ loss_agg_mode="token-mean"
 enable_filter_groups=True
 filter_groups_metric=acc
 max_num_gen_batches=10
-train_prompt_bsz=128
+train_prompt_bsz=512
 gen_prompt_bsz=$((train_prompt_bsz * 3))
 n_resp_per_prompt=8
 train_prompt_mini_bsz=32
 
 # Ray
 RAY_ADDRESS=${RAY_ADDRESS:-"http://localhost:8265"}
-WORKING_DIR=${WORKING_DIR:-"${PWD}"}
 RUNTIME_ENV=${RUNTIME_ENV:-"${WORKING_DIR}/verl/trainer/runtime_env.yaml"}
 NNODES=${NNODES:-1}
 
 # Paths
 RAY_DATA_HOME=${RAY_DATA_HOME:-"${WORKING_DIR}"}
-MODEL_PATH=${MODEL_PATH:-"/root/siton-data-0072803f053947c8bb3fe64d115b30e3/models/Qwen/Qwen2.5-7B-Instruct"}
+MODEL_PATH=${MODEL_PATH:-"/models/Qwen/Qwen2.5-1.5B-Instruct"}
 CKPTS_DIR=${CKPTS_DIR:-"${RAY_DATA_HOME}/ckpts/${project_name}/${exp_name}"}
 TRAIN_FILE=${TRAIN_FILE:-"${RAY_DATA_HOME}/data/dapo/dapo-math-17k.parquet"}
 TEST_FILE=${TEST_FILE:-"${RAY_DATA_HOME}/data/aime24/aime-2024.parquet"}
-ROLLOUT_DATA_DIR=${ROLLOUT_DATA_DIR:-"${RAY_DATA_HOME}/rollout_data/${project_name}/${exp_name}"}
-VALIDATION_DATA_DIR=${VALIDATION_DATA_DIR:-"${RAY_DATA_HOME}/validation_data/${project_name}/${exp_name}"}
+ROLLOUT_DATA_DIR=${ROLLOUT_DATA_DIR:-"${RAY_DATA_HOME}/data/rollout_data/${project_name}/${exp_name}"}
+VALIDATION_DATA_DIR=${VALIDATION_DATA_DIR:-"${RAY_DATA_HOME}/data/validation_data/${project_name}/${exp_name}"}
 
 # Algorithm
 temperature=1.0
@@ -58,14 +67,6 @@ actor_ppo_max_token_len=$((max_prompt_length + max_response_length))
 infer_ppo_max_token_len=$((max_prompt_length + max_response_length))
 offload=True
 gen_tp=1
-
-export RAY_TMPDIR="/root/siton-tmp/"
-export WANDB_API_KEY=37f371d2968f35d69749ee52089583eb8e1f0cab
-export WANDB_DIR="${WORKING_DIR}/wandb"
-export WANDB_MODE=online
-export ACCELERATE_LOG_LEVEL=info
-export HYDRA_FULL_ERROR=1
-export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
 python3 -m recipe.dapo.main_dapo \
     data.train_files="${TRAIN_FILE}" \
@@ -87,8 +88,8 @@ python3 -m recipe.dapo.main_dapo \
     algorithm.use_kl_in_reward=${use_kl_in_reward} \
     algorithm.kl_ctrl.kl_coef=${kl_coef} \
     algorithm.filter_groups.enable=${enable_filter_groups} \
-    algorithm.filter_groups.max_num_gen_batches=${max_num_gen_batches} \
     algorithm.filter_groups.metric=${filter_groups_metric} \
+    algorithm.filter_groups.max_num_gen_batches=${max_num_gen_batches} \
     actor_rollout_ref.model.use_remove_padding=True \
     actor_rollout_ref.actor.use_dynamic_bsz=${use_dynamic_bsz} \
     actor_rollout_ref.ref.log_prob_use_dynamic_bsz=${use_dynamic_bsz} \
@@ -133,7 +134,7 @@ python3 -m recipe.dapo.main_dapo \
     trainer.experiment_name="${exp_name}" \
     trainer.rollout_data_dir=${ROLLOUT_DATA_DIR} \
     trainer.validation_data_dir=${VALIDATION_DATA_DIR} \
-    trainer.n_gpus_per_node=4 \
+    trainer.n_gpus_per_node=2 \
     trainer.nnodes="${NNODES}" \
     trainer.val_before_train=True \
     trainer.test_freq=5 \
