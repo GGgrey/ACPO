@@ -58,7 +58,7 @@ VALIDATION_DATA_DIR=${VALIDATION_DATA_DIR:-"${RAY_DATA_HOME}/data/validation_dat
 temperature=1.0
 top_p=1.0
 top_k=-1  # 0 for HF rollout, -1 for vLLM rollout
-val_top_p=0.7
+val_top_p=0.95
 
 # Performance
 sp_size=2
