@@ -24,33 +24,37 @@ use_remove_padding=True
 enable_gradient_checkpointing=True
 
 # Actor config
-actor_optim_lr=1e-6
+optim_lr=1e-6
 train_prompt_mini_bsz=32
 ppo_micro_batch_size_per_gpu=4
 use_kl_loss=True
 kl_loss_coef=0.001
 kl_loss_type=low_var_kl
 entropy_coeff=0
-param_offload=False
+actor_param_offload=False
 optimizer_offload=False
 
 # Rollout config
-rollout_name=vllm
 log_prob_micro_batch_size_per_gpu=4
+tensor_model_parallel_size=2
+rollout_name=vllm
 gpu_memory_utilization=0.40
 n_resp_per_prompt=8
-tensor_model_parallel_size=2
+
+# Reference config
+ref_param_offload=False
 
 # Trainer config
 critic_warmup=0
 val_before_train=False
-n_gpus_per_node=2
+logger='["console","wandb"]'
 project_name="EXPS"
 exp_name="Qwen2.5-1.5B-Math-GRPO"
+n_gpus_per_node=2
 save_freq=30
 test_freq=5
-total_epochs=1
 resume_mode=auto
+total_epochs=1
 
 # Ray
 RAY_ADDRESS=${RAY_ADDRESS:-"http://localhost:8265"}
@@ -78,14 +82,14 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.model.path="${MODEL_PATH}" \
     actor_rollout_ref.model.use_remove_padding=${use_remove_padding} \
     actor_rollout_ref.model.enable_gradient_checkpointing=${enable_gradient_checkpointing} \
-    actor_rollout_ref.actor.optim.lr=${actor_optim_lr} \
+    actor_rollout_ref.actor.optim.lr=${optim_lr} \
     actor_rollout_ref.actor.ppo_mini_batch_size=${train_prompt_mini_bsz} \
     actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=${ppo_micro_batch_size_per_gpu} \
     actor_rollout_ref.actor.use_kl_loss=${use_kl_loss} \
     actor_rollout_ref.actor.kl_loss_coef=${kl_loss_coef} \
     actor_rollout_ref.actor.kl_loss_type=${kl_loss_type} \
     actor_rollout_ref.actor.entropy_coeff=${entropy_coeff} \
-    actor_rollout_ref.actor.fsdp_config.param_offload=${param_offload} \
+    actor_rollout_ref.actor.fsdp_config.param_offload=${actor_param_offload} \
     actor_rollout_ref.actor.fsdp_config.optimizer_offload=${optimizer_offload} \
     actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=${log_prob_micro_batch_size_per_gpu} \
     actor_rollout_ref.rollout.tensor_model_parallel_size=${tensor_model_parallel_size} \
@@ -93,10 +97,10 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.gpu_memory_utilization=${gpu_memory_utilization} \
     actor_rollout_ref.rollout.n=${n_resp_per_prompt} \
     actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=${log_prob_micro_batch_size_per_gpu} \
-    actor_rollout_ref.ref.fsdp_config.param_offload=${param_offload} \
+    actor_rollout_ref.ref.fsdp_config.param_offload=${ref_param_offload} \
     trainer.critic_warmup=${critic_warmup} \
     trainer.val_before_train=${val_before_train} \
-    trainer.logger='["console","wandb"]' \
+    trainer.logger="${logger}" \
     trainer.project_name="${project_name}" \
     trainer.experiment_name="${exp_name}" \
     trainer.n_gpus_per_node=${n_gpus_per_node} \

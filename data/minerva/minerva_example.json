@@ -1,0 +1,21 @@
+{
+  "data_source": "math_dapo",
+  "prompt": [
+    {
+      "content": "Solve the following math problem step by step. The last line of your response should be of the form Answer: $Answer (without quotes) where $Answer is the answer to the problem.\n\nEach of the two Magellan telescopes has a diameter of $6.5 \\mathrm{~m}$. In one configuration the effective focal length is $72 \\mathrm{~m}$. Find the diameter of the image of a planet (in $\\mathrm{cm}$ ) at this focus if the angular diameter of the planet at the time of the observation is $45^{\\prime \\prime}$.\n\nRemember to put your answer on its own line after \"Answer:\".",
+      "role": "user"
+    }
+  ],
+  "ability": "math",
+  "reward_model": {
+    "ground_truth": "1.6",
+    "style": "rule"
+  },
+  "extra_info": {
+    "benchmark": "minerva",
+    "index": 0,
+    "raw_problem": "Each of the two Magellan telescopes has a diameter of $6.5 \\mathrm{~m}$. In one configuration the effective focal length is $72 \\mathrm{~m}$. Find the diameter of the image of a planet (in $\\mathrm{cm}$ ) at this focus if the angular diameter of the planet at the time of the observation is $45^{\\prime \\prime}$.",
+    "split": "test",
+    "type": "Introduction to Astronomy (8.282J Spring 2006)"
+  }
+}

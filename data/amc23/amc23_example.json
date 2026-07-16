@@ -1,0 +1,20 @@
+{
+  "data_source": "math_dapo",
+  "prompt": [
+    {
+      "content": "Solve the following math problem step by step. The last line of your response should be of the form Answer: $Answer (without quotes) where $Answer is the answer to the problem.\n\nCities $A$ and $B$ are $45$ miles apart. Alicia lives in $A$ and Beth lives in $B$. Alicia bikes towards $B$ at 18 miles per hour. Leaving at the same time, Beth bikes toward $A$ at 12 miles per hour. How many miles from City $A$ will they be when they meet?\n\nRemember to put your answer on its own line after \"Answer:\".",
+      "role": "user"
+    }
+  ],
+  "ability": "math",
+  "reward_model": {
+    "ground_truth": "27",
+    "style": "rule"
+  },
+  "extra_info": {
+    "benchmark": "amc23",
+    "index": 0,
+    "raw_problem": "Cities $A$ and $B$ are $45$ miles apart. Alicia lives in $A$ and Beth lives in $B$. Alicia bikes towards $B$ at 18 miles per hour. Leaving at the same time, Beth bikes toward $A$ at 12 miles per hour. How many miles from City $A$ will they be when they meet?",
+    "split": "test"
+  }
+}

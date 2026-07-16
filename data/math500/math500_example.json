@@ -1,0 +1,23 @@
+{
+  "data_source": "math_dapo",
+  "prompt": [
+    {
+      "content": "Solve the following math problem step by step. The last line of your response should be of the form Answer: $Answer (without quotes) where $Answer is the answer to the problem.\n\nConvert the point $(0,3)$ in rectangular coordinates to polar coordinates.  Enter your answer in the form $(r,\\theta),$ where $r > 0$ and $0 \\le \\theta < 2 \\pi.$\n\nRemember to put your answer on its own line after \"Answer:\".",
+      "role": "user"
+    }
+  ],
+  "ability": "math",
+  "reward_model": {
+    "ground_truth": "\\left( 3, \\frac{\\pi}{2} \\right)",
+    "style": "rule"
+  },
+  "extra_info": {
+    "benchmark": "math500",
+    "index": 0,
+    "level": 2,
+    "raw_problem": "Convert the point $(0,3)$ in rectangular coordinates to polar coordinates.  Enter your answer in the form $(r,\\theta),$ where $r > 0$ and $0 \\le \\theta < 2 \\pi.$",
+    "split": "test",
+    "subject": "Precalculus",
+    "unique_id": "test/precalculus/807.json"
+  }
+}

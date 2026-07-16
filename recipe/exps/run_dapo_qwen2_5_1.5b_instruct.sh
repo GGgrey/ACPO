@@ -9,7 +9,7 @@ export WANDB_DIR="${WORKING_DIR}"
 export WANDB_MODE=online
 export ACCELERATE_LOG_LEVEL=info
 export HYDRA_FULL_ERROR=1
-export CUDA_VISIBLE_DEVICES="3,4"
+export CUDA_VISIBLE_DEVICES="2,3"
 
 project_name='EXPS'
 exp_name='DAPO-Qwen2.5-1.5B-Instruct'
@@ -35,10 +35,10 @@ loss_agg_mode="token-mean"
 enable_filter_groups=True
 filter_groups_metric=acc
 max_num_gen_batches=10
-train_prompt_bsz=512
-gen_prompt_bsz=$((train_prompt_bsz * 3))
+train_prompt_bsz=256
+gen_prompt_bsz=$((train_prompt_bsz * 2))
 n_resp_per_prompt=8
-train_prompt_mini_bsz=32
+train_prompt_mini_bsz=16
 
 # Ray
 RAY_ADDRESS=${RAY_ADDRESS:-"http://localhost:8265"}
@@ -49,8 +49,8 @@ NNODES=${NNODES:-1}
 RAY_DATA_HOME=${RAY_DATA_HOME:-"${WORKING_DIR}"}
 MODEL_PATH=${MODEL_PATH:-"/models/Qwen/Qwen2.5-1.5B-Instruct"}
 CKPTS_DIR=${CKPTS_DIR:-"${RAY_DATA_HOME}/ckpts/${project_name}/${exp_name}"}
-TRAIN_FILE=${TRAIN_FILE:-"${RAY_DATA_HOME}/data/dapo/dapo-math-17k.parquet"}
-TEST_FILE=${TEST_FILE:-"${RAY_DATA_HOME}/data/aime24/aime-2024.parquet"}
+TRAIN_FILE=${TRAIN_FILE:-"${RAY_DATA_HOME}/data/dapo/dapo-math-17k-processed.parquet"}
+TEST_FILE=${TEST_FILE:-"['${RAY_DATA_HOME}/data/aime24/aime24.parquet','${RAY_DATA_HOME}/data/aime25/aime25.parquet','${RAY_DATA_HOME}/data/amc23/amc23.parquet','${RAY_DATA_HOME}/data/math500/math500.parquet','${RAY_DATA_HOME}/data/gaokao2023en/gaokao2023en.parquet','${RAY_DATA_HOME}/data/olympiadbench/olympiadbench.parquet','${RAY_DATA_HOME}/data/minerva/minerva.parquet']"}
 ROLLOUT_DATA_DIR=${ROLLOUT_DATA_DIR:-"${RAY_DATA_HOME}/data/rollout_data/${project_name}/${exp_name}"}
 VALIDATION_DATA_DIR=${VALIDATION_DATA_DIR:-"${RAY_DATA_HOME}/data/validation_data/${project_name}/${exp_name}"}
 
@@ -65,7 +65,7 @@ sp_size=2
 use_dynamic_bsz=True
 actor_ppo_max_token_len=$((max_prompt_length + max_response_length))
 infer_ppo_max_token_len=$((max_prompt_length + max_response_length))
-offload=True
+offload=False
 gen_tp=1
 
 python3 -m recipe.dapo.main_dapo \
@@ -118,7 +118,7 @@ python3 -m recipe.dapo.main_dapo \
     actor_rollout_ref.rollout.top_k="${top_k}" \
     actor_rollout_ref.rollout.val_kwargs.temperature=${temperature} \
     actor_rollout_ref.rollout.val_kwargs.top_p=${val_top_p} \
-    actor_rollout_ref.rollout.val_kwargs.top_k=${top_k} \
+    actor_rollout_ref.rollout.val_kwargs.top_k="${top_k}" \
     actor_rollout_ref.rollout.val_kwargs.do_sample=True \
     actor_rollout_ref.rollout.val_kwargs.n=1 \
     actor_rollout_ref.rollout.name=vllm \

@@ -1,0 +1,20 @@
+{
+  "data_source": "math_dapo",
+  "prompt": [
+    {
+      "content": "Solve the following math problem step by step. The last line of your response should be of the form Answer: $Answer (without quotes) where $Answer is the answer to the problem.\n\nFind the sum of all integer bases $b>9$ for which $17_{b}$ is a divisor of $97_{b}$.\n\nRemember to put your answer on its own line after \"Answer:\".",
+      "role": "user"
+    }
+  ],
+  "ability": "math",
+  "reward_model": {
+    "ground_truth": "70",
+    "style": "rule"
+  },
+  "extra_info": {
+    "benchmark": "aime25",
+    "index": 0,
+    "raw_problem": "Find the sum of all integer bases $b>9$ for which $17_{b}$ is a divisor of $97_{b}$.",
+    "split": "test"
+  }
+}
