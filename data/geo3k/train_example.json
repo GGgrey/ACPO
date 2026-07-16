@@ -1,0 +1,23 @@
+{
+  "images": [
+    "<image>"
+  ],
+  "data_source": "hiyouga/geometry3k",
+  "prompt": [
+    {
+      "content": "<image>Find x. You FIRST think about the reasoning process as an internal monologue and then provide the final answer. The reasoning process MUST BE enclosed within <think> </think> tags. The final answer MUST BE put in \\boxed{}.",
+      "role": "user"
+    }
+  ],
+  "ability": "math",
+  "reward_model": {
+    "ground_truth": "3",
+    "style": "rule"
+  },
+  "extra_info": {
+    "answer": "3",
+    "index": 0,
+    "question": "<image>Find x.",
+    "split": "train"
+  }
+}
