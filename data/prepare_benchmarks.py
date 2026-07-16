@@ -54,20 +54,23 @@ def _extract_boxed(text: str) -> Optional[str]:
 
 def _make_row(
     *,
+    name: str,
     problem: str,
     ground_truth: str,
     index: int,
-    benchmark: Optional[str] = None,
     extra: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
-    extra_info: dict[str, Any] = {"split": "test", "index": index, "raw_problem": problem}
-    if benchmark is not None:
-        extra_info["benchmark"] = benchmark
+    data_source = f"dapo_{name}"
+    extra_info: dict[str, Any] = {
+        "split": "test",
+        "index": index,
+        "raw_problem": problem,
+        "benchmark": name,
+    }
     if extra:
         extra_info.update(extra)
-    extra_info["split"] = "test"
     return {
-        "data_source": "math_dapo",
+        "data_source": data_source,
         "prompt": [{"role": "user", "content": DAPO_INSTRUCTION.format(problem=problem)}],
         "ability": "math",
         "reward_model": {"style": "rule", "ground_truth": str(ground_truth).strip()},
@@ -88,7 +91,7 @@ def build_aime24() -> datasets.Dataset:
             gt = str(ex["solution"]).strip()
         rows.append(
             _make_row(
-                benchmark="aime24",
+                name="aime24",
                 problem=ex["problem"],
                 ground_truth=gt,
                 index=i,
@@ -104,7 +107,7 @@ def build_aime25() -> datasets.Dataset:
     for i, ex in enumerate(ds):
         rows.append(
             _make_row(
-                benchmark="aime25",
+                name="aime25",
                 problem=ex["problem"],
                 ground_truth=ex["answer"],
                 index=i,
@@ -120,7 +123,7 @@ def build_amc23() -> datasets.Dataset:
         problem = ex.get("problem") or ex.get("question")
         rows.append(
             _make_row(
-                benchmark="amc23",
+                name="amc23",
                 problem=problem,
                 ground_truth=ex["answer"],
                 index=i,
@@ -135,7 +138,7 @@ def build_math500() -> datasets.Dataset:
     for i, ex in enumerate(ds):
         rows.append(
             _make_row(
-                benchmark="math500",
+                name="math500",
                 problem=ex["problem"],
                 ground_truth=ex["answer"],
                 index=i,
@@ -151,7 +154,7 @@ def build_gaokao2023en() -> datasets.Dataset:
     for i, ex in enumerate(ds):
         rows.append(
             _make_row(
-                benchmark="gaokao2023en",
+                name="gaokao2023en",
                 problem=ex["question"],
                 ground_truth=ex["answer"],
                 index=i,
@@ -179,7 +182,7 @@ def build_olympiadbench() -> datasets.Dataset:
             gt = boxed
         rows.append(
             _make_row(
-                benchmark="olympiadbench",
+                name="olympiadbench",
                 problem=ex["question"],
                 ground_truth=gt,
                 index=i,
@@ -206,7 +209,7 @@ def build_minerva() -> datasets.Dataset:
             continue
         rows.append(
             _make_row(
-                benchmark="minerva",
+                name="minerva",
                 problem=ex["problem"],
                 ground_truth=gt,
                 index=i,
