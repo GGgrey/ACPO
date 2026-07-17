@@ -41,7 +41,7 @@ optimizer_offload=False
 log_prob_micro_batch_size_per_gpu=4
 tensor_model_parallel_size=2
 rollout_name=vllm
-gpu_memory_utilization=0.50
+gpu_memory_utilization=0.40
 n_resp_per_prompt=8
 train_temperature=1.0
 train_top_p=1.0
@@ -50,7 +50,7 @@ val_temperature=1.0
 val_top_p=0.95
 val_top_k=-1
 val_do_sample=True
-val_n=16
+val_n=1
 
 # Reference config
 ref_param_offload=False
@@ -60,7 +60,7 @@ critic_warmup=0
 val_before_train=True
 logger='["console","wandb"]'
 project_name="EXPS"
-exp_name="GRPO-Qwen2.5-1.5B-Instruct"
+exp_name="GRPO-Qwen2.5-3B-Instruct"
 n_gpus_per_node=2
 save_freq=20
 test_freq=5
@@ -74,7 +74,7 @@ NNODES=${NNODES:-1}
 
 # Paths
 RAY_DATA_HOME=${RAY_DATA_HOME:-"${WORKING_DIR}"}
-MODEL_PATH=${MODEL_PATH:-"/models/Qwen/Qwen2.5-1.5B-Instruct"}
+MODEL_PATH=${MODEL_PATH:-"/models/Qwen/Qwen2.5-3B-Instruct"}
 CKPTS_DIR=${CKPTS_DIR:-"${RAY_DATA_HOME}/ckpts/${project_name}/${exp_name}"}
 TRAIN_FILE=${TRAIN_FILE:-"${RAY_DATA_HOME}/data/dapo/dapo-math-17k-processed.parquet"}
 TEST_FILE=${TEST_FILE:-"['${RAY_DATA_HOME}/data/aime24/aime24.parquet','${RAY_DATA_HOME}/data/aime25/aime25.parquet','${RAY_DATA_HOME}/data/amc23/amc23.parquet','${RAY_DATA_HOME}/data/math500/math500.parquet','${RAY_DATA_HOME}/data/gaokao2023en/gaokao2023en.parquet','${RAY_DATA_HOME}/data/olympiadbench/olympiadbench.parquet','${RAY_DATA_HOME}/data/minerva/minerva.parquet']"}
