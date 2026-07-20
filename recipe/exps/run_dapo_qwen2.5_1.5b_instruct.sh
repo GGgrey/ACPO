@@ -9,7 +9,7 @@ export WANDB_DIR="${WORKING_DIR}"
 export WANDB_MODE=online
 export ACCELERATE_LOG_LEVEL=info
 export HYDRA_FULL_ERROR=1
-export CUDA_VISIBLE_DEVICES="2,3"
+export CUDA_VISIBLE_DEVICES="1,4"
 
 project_name='EXPS'
 exp_name='DAPO-Qwen2.5-1.5B-Instruct'
@@ -39,6 +39,8 @@ train_prompt_bsz=256
 gen_prompt_bsz=$((train_prompt_bsz * 2))
 n_resp_per_prompt=8
 train_prompt_mini_bsz=16
+total_epochs=20
+total_training_steps=67
 
 # Ray
 RAY_ADDRESS=${RAY_ADDRESS:-"http://localhost:8265"}
@@ -100,8 +102,6 @@ python3 -m recipe.dapo.main_dapo \
     actor_rollout_ref.model.path="${MODEL_PATH}" \
     actor_rollout_ref.model.enable_gradient_checkpointing=True \
     actor_rollout_ref.actor.optim.lr=1e-6 \
-    actor_rollout_ref.actor.optim.lr_warmup_steps=10 \
-    actor_rollout_ref.actor.optim.weight_decay=0.1 \
     actor_rollout_ref.actor.ppo_mini_batch_size=${train_prompt_mini_bsz} \
     actor_rollout_ref.actor.fsdp_config.param_offload=${offload} \
     actor_rollout_ref.actor.fsdp_config.optimizer_offload=${offload} \
@@ -139,6 +139,7 @@ python3 -m recipe.dapo.main_dapo \
     trainer.val_before_train=True \
     trainer.test_freq=5 \
     trainer.save_freq=20 \
-    trainer.total_epochs=1 \
+    trainer.total_epochs=${total_epochs} \
+    trainer.total_training_steps=${total_training_steps} \
     trainer.default_local_dir="${CKPTS_DIR}" \
     trainer.resume_mode=auto

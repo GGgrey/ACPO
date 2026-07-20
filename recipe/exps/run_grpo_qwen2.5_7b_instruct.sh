@@ -9,7 +9,7 @@ export WANDB_DIR="${WORKING_DIR}"
 export WANDB_MODE=online
 export ACCELERATE_LOG_LEVEL=info
 export HYDRA_FULL_ERROR=1
-export CUDA_VISIBLE_DEVICES="1,4"
+export CUDA_VISIBLE_DEVICES="1,2,3,4"
 
 # Data config
 train_prompt_bsz=256
@@ -28,8 +28,8 @@ enable_gradient_checkpointing=True
 
 # Actor config
 optim_lr=1e-6
-train_prompt_mini_bsz=16
-ppo_micro_batch_size_per_gpu=4
+train_prompt_mini_bsz=8
+ppo_micro_batch_size_per_gpu=1
 use_kl_loss=True
 kl_loss_coef=0.001
 kl_loss_type=low_var_kl
@@ -38,10 +38,10 @@ actor_param_offload=False
 optimizer_offload=False
 
 # Rollout config
-log_prob_micro_batch_size_per_gpu=4
+log_prob_micro_batch_size_per_gpu=1
 tensor_model_parallel_size=2
 rollout_name=vllm
-gpu_memory_utilization=0.60
+gpu_memory_utilization=0.30
 n_resp_per_prompt=8
 train_temperature=1.0
 train_top_p=1.0
@@ -50,18 +50,18 @@ val_temperature=1.0
 val_top_p=0.95
 val_top_k=-1
 val_do_sample=True
-val_n=16
+val_n=1
 
 # Reference config
 ref_param_offload=False
 
 # Trainer config
 critic_warmup=0
-val_before_train=True
+val_before_train=False
 logger='["console","wandb"]'
 project_name="EXPS"
 exp_name="GRPO-Qwen2.5-7B-Instruct"
-n_gpus_per_node=2
+n_gpus_per_node=4
 save_freq=20
 test_freq=5
 resume_mode=auto
