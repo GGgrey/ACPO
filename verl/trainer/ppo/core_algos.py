@@ -106,6 +106,7 @@ class AdvantageEstimator(str, Enum):
     RLOO_VECTORIZED = "rloo_vectorized"
     GRPO_VECTORIZED = "grpo_vectorized"
     DGAE = "dgae"
+    DGPO = "dgpo"
 
 
 ADV_ESTIMATOR_REGISTRY: dict[str, Any] = {}
@@ -338,31 +339,118 @@ def compute_dgae_outcome_advantage(
     config: Optional[AlgoConfig] = None,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     scores = token_level_rewards.sum(dim=-1)
+    advantages = torch.zeros_like(scores)
 
     id2score = defaultdict(list)
-    id2mean = {}
-    id2mad = {}
+    id2indices = defaultdict(list)
 
     with torch.no_grad():
         bsz = scores.shape[0]
         for i in range(bsz):
             id2score[index[i]].append(scores[i])
-        for idx in id2score:
-            if len(id2score[idx]) == 1:
-                id2mean[idx] = torch.tensor(0.0, device=scores.device, dtype=scores.dtype)
-                id2mad[idx] = torch.tensor(1.0, device=scores.device, dtype=scores.dtype)
-            elif len(id2score[idx]) > 1:
-                scores_tensor = torch.stack(id2score[idx])
-                group_mean = torch.mean(scores_tensor)
-                id2mean[idx] = group_mean
-                id2mad[idx] = torch.mean(torch.abs(scores_tensor - group_mean))
-            else:
-                raise ValueError(f"No score in prompt index: {idx}")
-        for i in range(bsz):
-            scores[i] = (scores[i] - id2mean[index[i]]) / (id2mad[index[i]] + epsilon)
-        scores = scores.unsqueeze(-1) * response_mask
+            id2indices[index[i]].append(i)
 
-    return scores, scores
+        for idx in id2score:
+            idx_list = id2indices[idx]
+            if len(idx_list) == 1:
+                continue
+            scores_tensor = torch.stack(id2score[idx])
+            centered = scores_tensor - torch.mean(scores_tensor)
+            adv_extent = centered.abs().sum()
+            group_adv = scores_tensor.numel() * centered / (adv_extent + epsilon)
+            for local_i, global_i in enumerate(idx_list):
+                advantages[global_i] = group_adv[local_i]
+
+        advantages = advantages.unsqueeze(-1) * response_mask
+
+    return advantages, advantages
+
+
+@register_adv_est(AdvantageEstimator.DGPO)  # or simply: @register_adv_est("dgpo")
+def compute_dgpo_outcome_advantage(
+    token_level_rewards: torch.Tensor,
+    response_mask: torch.Tensor,
+    index: np.ndarray,
+    epsilon: float = 1e-6,
+    config: Optional[AlgoConfig] = None,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    if config is not None:
+        enable_dqw = bool(config.get("dgpo_enable_dqw", True))
+        dqw_temp = float(config.get("dgpo_dqw_temp", 2.0))
+    else:
+        enable_dqw = True
+        dqw_temp = 2.0
+
+    scores = token_level_rewards.sum(dim=-1)
+    seq_lengths = response_mask.sum(dim=-1).clamp(min=1.0)
+    advantages = torch.zeros_like(scores)
+
+    id2score = defaultdict(list)
+    id2indices = defaultdict(list)
+
+    with torch.no_grad():
+        bsz = scores.shape[0]
+        for i in range(bsz):
+            id2score[index[i]].append(scores[i])
+            id2indices[index[i]].append(i)
+
+        group_ids = list(id2score.keys())
+        num_groups = len(group_ids)
+        group_means = []
+        group_stds = []
+        group_token_counts = []
+        group_is_valid = []
+
+        for gid in group_ids:
+            idx_list = id2indices[gid]
+            scores_tensor = torch.stack(id2score[gid])
+            group_mean = torch.mean(scores_tensor)
+            group_std = torch.std(scores_tensor) if scores_tensor.numel() > 1 else scores_tensor.new_tensor(0.0)
+            token_count = seq_lengths[idx_list].sum()
+
+            group_means.append(group_mean)
+            group_stds.append(group_std)
+            group_token_counts.append(token_count)
+
+            is_std_zero = torch.isclose(group_std, torch.zeros_like(group_std))
+            group_is_valid.append(bool((scores_tensor.numel() > 1) and (not is_std_zero)))
+
+            if scores_tensor.numel() == 1 or is_std_zero:
+                continue
+
+            centered = scores_tensor - group_mean
+            adv_extent = centered.abs().sum()
+            group_adv = scores_tensor.numel() * centered / (adv_extent + epsilon)
+            for local_i, global_i in enumerate(idx_list):
+                advantages[global_i] = group_adv[local_i]
+
+        group_means_t = torch.stack(group_means) if group_means else scores.new_zeros(0)
+        group_token_counts_t = torch.stack(group_token_counts) if group_token_counts else scores.new_zeros(0)
+        valid_mask = torch.tensor(group_is_valid, device=scores.device, dtype=torch.bool)
+
+        total_tokens = seq_lengths.sum().clamp(min=1.0)
+        if valid_mask.any():
+            valid_tokens = group_token_counts_t[valid_mask].sum().clamp(min=1.0)
+            zero_mask_ratio = total_tokens / valid_tokens
+        else:
+            zero_mask_ratio = scores.new_tensor(1.0)
+        advantages = advantages * zero_mask_ratio
+
+        if enable_dqw and valid_mask.any():
+            num_valid = int(valid_mask.sum().item())
+            valid_means = group_means_t[valid_mask]
+            weights_valid = num_valid * torch.nn.functional.softmax(valid_means.neg() / dqw_temp, dim=0)
+
+            group_weights = torch.ones(num_groups, device=scores.device, dtype=scores.dtype)
+            group_weights[valid_mask] = weights_valid
+
+            for g_i, gid in enumerate(group_ids):
+                for global_i in id2indices[gid]:
+                    advantages[global_i] = advantages[global_i] * group_weights[g_i]
+
+        advantages = advantages.unsqueeze(-1) * response_mask
+
+    return advantages, advantages
 
 
 @register_adv_est(AdvantageEstimator.GRPO_VECTORIZED)
